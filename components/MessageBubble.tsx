@@ -11,9 +11,10 @@ interface MessageBubbleProps {
 // They summarize what the person said back to them — a distinct conversational move that
 // deserves a distinct visual treatment (subtle left border, slight indent).
 const REFLECTION_PATTERNS = [
-  /^let me make sure/i,
+  /^let me make sure/i,           // "Let me make sure I've got this right / the picture"
   /^so here'?s what i'?m hearing/i,
   /^if i'?ve got this right/i,
+  /^before (i |we )?(go further|do anything)/i,
 ];
 
 // Renders inline **bold** markers as <strong> — lets demo messages (and Claude when
@@ -42,8 +43,12 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
 
   // Reflection messages ("Let me make sure I've got this right...") get a subtle
   // left-border treatment to visually distinguish "what I heard" from other responses.
+  // Split by \n\n so we catch reflection paragraphs that follow a brief acknowledgment
+  // (e.g. "That makes sense.\n\nLet me make sure...") — detection only, rendering unchanged.
   const isReflection = isAssistant && textBlocks.some(b =>
-    REFLECTION_PATTERNS.some(p => p.test(b.trim()))
+    b.split(/\n\n+/).some(para =>
+      REFLECTION_PATTERNS.some(p => p.test(para.trim()))
+    )
   );
 
   return (
