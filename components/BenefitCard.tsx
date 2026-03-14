@@ -2,7 +2,7 @@
 
 import type { BenefitPrediction } from '@/lib/types';
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Calculator } from 'lucide-react';
 
 const confidenceStyles = {
   high:   { dots: '●●●●○', label: 'High confidence', color: 'text-confidence-high' },
@@ -23,11 +23,11 @@ export default function BenefitCard({ prediction }: { prediction: BenefitPredict
           <h3 className="font-semibold text-base">{prediction.programName}</h3>
           <p className="text-xs text-muted-foreground">({prediction.officialName})</p>
         </div>
-        {/* Verified badge OR confidence indicator */}
+        {/* Calculated badge OR confidence indicator */}
         {isVerified ? (
           <div className="flex items-center gap-1 bg-confidence-high/10 border border-confidence-high/25 text-confidence-high rounded-full px-2 py-1 shrink-0">
-            <CheckCircle className="w-3 h-3" />
-            <span className="text-[10px] font-semibold tracking-wide">Verified</span>
+            <Calculator className="w-3 h-3" />
+            <span className="text-[10px] font-semibold tracking-wide">Calculated</span>
           </div>
         ) : (
           <div className={`text-right shrink-0 ${conf.color}`}>
@@ -50,16 +50,6 @@ export default function BenefitCard({ prediction }: { prediction: BenefitPredict
           <p className="text-sm font-medium">{prediction.estimatedValue}</p>
         )}
       </div>
-
-      {/* Citation badge — only for verified cards */}
-      {isVerified && prediction.citation && (
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-confidence-high shrink-0" />
-          <p className="text-[10px] font-mono text-muted-foreground">
-            {prediction.citation}
-          </p>
-        </div>
-      )}
 
       {/* Description */}
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -108,6 +98,15 @@ export default function BenefitCard({ prediction }: { prediction: BenefitPredict
             >
               Go to application <ExternalLink className="w-3 h-3" />
             </a>
+          )}
+          {/* Citation tucked here — for credibility, not for card-face legibility */}
+          {isVerified && prediction.citation && (
+            <div className="flex items-center gap-1.5 pt-1 border-t border-border/50">
+              <div className="w-1.5 h-1.5 rounded-full bg-confidence-high/60 shrink-0" />
+              <p className="text-[10px] font-mono text-muted-foreground/60">
+                {prediction.citation}
+              </p>
+            </div>
           )}
         </div>
       )}

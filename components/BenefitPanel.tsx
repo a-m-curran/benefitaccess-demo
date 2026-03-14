@@ -33,10 +33,24 @@ export default function BenefitPanel({
         </div>
         {verifiedCount > 0 && (
           <p className="text-[10px] text-muted-foreground mt-1 font-mono">
-            {verifiedCount} verified · Rule Atlas rules engine
+            {verifiedCount} calculated · Rule Atlas rules engine
           </p>
         )}
       </div>
+
+      {/* Income simulator — at the top of the scrollable area, appears when income is known.
+          Positioned here so the conversation's "check the simulator" prompt is immediately
+          visible without having to scroll past all benefit cards. */}
+      {baseIncome !== undefined && baseIncome > 0 && (
+        <div className="flex-shrink-0 border-b">
+          <ScenarioModeler
+            baseIncome={baseIncome}
+            householdSize={householdSize}
+            numChildren={numChildren}
+            childrenUnder5={childrenUnder5}
+          />
+        </div>
+      )}
 
       {/* Cards list */}
       <div className="flex-1 overflow-y-auto chat-scroll px-3 py-3 space-y-2">
@@ -55,16 +69,6 @@ export default function BenefitPanel({
           ))
         )}
       </div>
-
-      {/* Scenario modeler — shown when we have an income figure */}
-      {baseIncome !== undefined && baseIncome > 0 && (
-        <ScenarioModeler
-          baseIncome={baseIncome}
-          householdSize={householdSize}
-          numChildren={numChildren}
-          childrenUnder5={childrenUnder5}
-        />
-      )}
     </aside>
   );
 }

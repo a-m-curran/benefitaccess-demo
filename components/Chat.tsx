@@ -2,16 +2,16 @@
 
 import { useReducer, useCallback, useRef, useEffect, useState } from 'react';
 import MessageBubble from './MessageBubble';
-import SuggestedPrompts from './SuggestedPrompts';
+import SuggestedPrompts, { STANDARD_PROMPTS } from './SuggestedPrompts';
 import InputArea from './InputArea';
 import WelcomeBanner from './WelcomeBanner';
 import TypingIndicator from './TypingIndicator';
 import BenefitPanel from './BenefitPanel';
 import { parseMessageContent } from '@/lib/parseResponse';
 import type { Message, ConversationState, BenefitPrediction } from '@/lib/types';
-import { Sparkles, MessageSquare, FlaskConical } from 'lucide-react';
+import { Sparkles, MessageSquare } from 'lucide-react';
 import {
-  DEMO_MESSAGES, DEMO_BENEFIT_CARDS, DEMO_BASE_INCOME, DEMO_HOUSEHOLD,
+  DEMO_MESSAGES, DEMO_CARD_REVEAL, DEMO_BASE_INCOME, DEMO_HOUSEHOLD,
 } from '@/lib/demoData';
 
 type Action =
@@ -35,17 +35,9 @@ const INITIAL_MESSAGE: Message = {
   timestamp: Date.now(),
 };
 
-function initialState(demoMode: boolean): ConversationState {
-  if (demoMode) {
-    return {
-      messages: DEMO_MESSAGES,
-      benefitCards: DEMO_BENEFIT_CARDS,
-      baseIncome: DEMO_BASE_INCOME,
-      isStreaming: false,
-      streamingContent: '',
-      phase: 'deepening',
-    };
-  }
+// Both demo and live mode start fresh — same opening message + chips.
+// In demo mode, chips include a special "Walk me through an example" trigger.
+function initialState(): ConversationState {
   return {
     messages: [INITIAL_MESSAGE],
     benefitCards: [],
@@ -58,13 +50,11 @@ function initialState(demoMode: boolean): ConversationState {
 
 // Very rough income extraction from conversation text — good enough for demo
 function extractIncome(text: string): number | undefined {
-  // Look for patterns like "$1,733/month", "1733/month", "$16/hour × 25", etc.
   const monthlyMatch = text.match(/\$?([\d,]+)\s*(?:\/month|per month|\/mo)/i);
   if (monthlyMatch) {
     const n = parseInt(monthlyMatch[1].replace(/,/g, ''), 10);
     if (n > 200 && n < 20000) return n;
   }
-  // Hourly × hours → monthly
   const hourlyMatch = text.match(/\$?([\d.]+)\s*(?:\/hour|per hour|\/hr|an hour)[\s\S]{0,60}?(\d+)\s*hours?\s*(?:\/week|a week|per week)/i);
   if (hourlyMatch) {
     const rate = parseFloat(hourlyMatch[1]);
@@ -74,6 +64,13 @@ function extractIncome(text: string): number | undefined {
     }
   }
   return undefined;
+}
+
+// Typing duration scales with message length to feel realistic
+function typingDuration(content: string): number {
+  if (content.length < 150) return 1500;
+  if (content.length < 400) return 2000;
+  return 2600;
 }
 
 function reducer(state: ConversationState, action: Action): ConversationState {
@@ -125,16 +122,71 @@ interface ChatProps {
 }
 
 export default function Chat({ demoMode = false }: ChatProps) {
-  const [state, dispatch] = useReducer(reducer, demoMode, initialState);
-  const [promptsUsed, setPromptsUsed] = useState(demoMode);
-  // Demo starts on chat tab so the conversation arc is visible first — that's the story
+  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const [promptsUsed, setPromptsUsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Demo auto-play: null = not playing, number = next DEMO_MESSAGES index to show.
+  // Playback starts at index 1 (demo-0 is the opening message, already shown by INITIAL_MESSAGE).
+  const [demoPlayback, setDemoPlayback] = useState<number | null>(null);
+
+  const isDemoPlaying = demoPlayback !== null;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages, state.streamingContent]);
 
+  // ── Demo auto-play engine ──────────────────────────────────────────────────
+  // Advances through DEMO_MESSAGES one at a time with realistic delays.
+  // User messages appear after a short pause; assistant messages show a typing
+  // indicator, then the full message. Cards are revealed per DEMO_CARD_REVEAL.
+  useEffect(() => {
+    if (demoPlayback === null) return;
+
+    // Skip demo-0 (it's the same as the opening message already shown)
+    const idx = demoPlayback === 0 ? 1 : demoPlayback;
+
+    if (idx >= DEMO_MESSAGES.length) {
+      setDemoPlayback(null); // finished
+      return;
+    }
+
+    const msg = DEMO_MESSAGES[idx];
+
+    if (msg.role === 'assistant') {
+      // Show typing indicator immediately, then reveal message after a duration
+      dispatch({ type: 'START_STREAMING' });
+      const t = setTimeout(() => {
+        dispatch({ type: 'FINISH_STREAMING', message: msg });
+
+        // Reveal cards mapped to this message
+        const cards = DEMO_CARD_REVEAL[msg.id];
+        if (cards?.length) dispatch({ type: 'ADD_CARDS', cards });
+
+        // Set income when demo-4 plays (assistant first calculates the $1,733 figure)
+        if (msg.id === 'demo-4') dispatch({ type: 'SET_BASE_INCOME', income: DEMO_BASE_INCOME });
+
+        setDemoPlayback(idx + 1);
+      }, typingDuration(msg.content));
+      return () => clearTimeout(t);
+    } else {
+      // User messages appear after a short pause (gives the reader a moment)
+      const t = setTimeout(() => {
+        dispatch({ type: 'ADD_MESSAGE', message: msg });
+        setDemoPlayback(idx + 1);
+      }, 500);
+      return () => clearTimeout(t);
+    }
+  }, [demoPlayback]);
+
+  // Start demo playback from message index 1 (demo-1 is Maya's first message)
+  const startDemoPlayback = useCallback(() => {
+    setPromptsUsed(true);
+    setDemoPlayback(1);
+  }, []);
+
+  // ── Live message send ──────────────────────────────────────────────────────
   const sendMessage = useCallback(async (content: string) => {
     const userMessage: Message = {
       id: generateId(),
@@ -143,11 +195,8 @@ export default function Chat({ demoMode = false }: ChatProps) {
       timestamp: Date.now(),
     };
 
-    // Try to extract income from user messages
     const income = extractIncome(content);
-    if (income && !state.baseIncome) {
-      dispatch({ type: 'SET_BASE_INCOME', income });
-    }
+    if (income && !state.baseIncome) dispatch({ type: 'SET_BASE_INCOME', income });
 
     setPromptsUsed(true);
     setActiveTab('chat');
@@ -188,23 +237,20 @@ export default function Chat({ demoMode = false }: ChatProps) {
 
       dispatch({ type: 'FINISH_STREAMING', message: assistantMessage });
 
-      // Extract income from assistant response if not yet set
       if (!state.baseIncome) {
         const income = extractIncome(fullText);
         if (income) dispatch({ type: 'SET_BASE_INCOME', income });
       }
 
-      // Extract benefit cards
       const { benefitCards } = parseMessageContent(fullText);
-      if (benefitCards.length > 0) {
-        dispatch({ type: 'ADD_CARDS', cards: benefitCards });
-      }
+      if (benefitCards.length > 0) dispatch({ type: 'ADD_CARDS', cards: benefitCards });
     } catch {
       dispatch({ type: 'SET_ERROR', error: 'Request failed' });
     }
   }, [state.messages, state.baseIncome]);
 
   const cardCount = state.benefitCards.length;
+  const showChips = !promptsUsed && state.messages.length === 1 && !state.isStreaming;
 
   return (
     <div className="flex flex-col h-dvh max-h-dvh overflow-hidden">
@@ -214,9 +260,8 @@ export default function Chat({ demoMode = false }: ChatProps) {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm text-primary">BenefitAccess</span>
             {demoMode && (
-              <span className="flex items-center gap-1 text-[10px] font-mono bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded px-1.5 py-0.5">
-                <FlaskConical className="w-2.5 h-2.5" />
-                demo
+              <span className="text-[10px] font-mono text-muted-foreground border border-border rounded px-1.5 py-0.5">
+                prototype
               </span>
             )}
           </div>
@@ -282,11 +327,19 @@ export default function Chat({ demoMode = false }: ChatProps) {
                 <MessageBubble key={message.id} message={message} />
               ))}
 
-              {!promptsUsed && state.messages.length === 1 && !state.isStreaming && (
-                <SuggestedPrompts onSelect={(prompt) => {
-                  setPromptsUsed(true);
-                  sendMessage(prompt);
-                }} />
+              {/* Chips: shown until user sends first message.
+                  In demo mode, includes a featured "Walk me through" chip that
+                  triggers auto-play of the pre-written arc. Regular chips still
+                  work and go to the live API for real conversations. */}
+              {showChips && (
+                <SuggestedPrompts
+                  prompts={STANDARD_PROMPTS}
+                  onSelect={sendMessage}
+                  featuredChip={demoMode ? {
+                    label: '▶ Walk me through an example',
+                    onSelect: startDemoPlayback,
+                  } : undefined}
+                />
               )}
 
               {state.isStreaming && state.streamingContent && (
@@ -306,7 +359,11 @@ export default function Chat({ demoMode = false }: ChatProps) {
             </div>
           </div>
 
-          <InputArea onSend={sendMessage} disabled={state.isStreaming} />
+          {/* Input is disabled during demo playback so the arc isn't interrupted */}
+          <InputArea
+            onSend={sendMessage}
+            disabled={state.isStreaming || isDemoPlaying}
+          />
         </div>
       </div>
     </div>

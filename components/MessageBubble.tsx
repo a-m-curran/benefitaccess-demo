@@ -7,6 +7,22 @@ interface MessageBubbleProps {
   message: Message;
 }
 
+// Renders inline **bold** markers as <strong> — lets demo messages (and Claude when
+// prompted) emphasize key figures like **$619/month** without a full markdown library.
+function renderInline(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
+  if (parts.length === 1) return text;
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.startsWith('**') && part.endsWith('**')
+          ? <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>
+          : part
+      )}
+    </>
+  );
+}
+
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
   // Extract text only — benefit cards are rendered in the persistent left panel
@@ -28,7 +44,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
       >
         {textBlocks.map((block, i) => (
           <p key={i} className={`text-[15px] leading-relaxed whitespace-pre-wrap ${i > 0 ? 'mt-2' : ''}`}>
-            {block}
+            {renderInline(block)}
           </p>
         ))}
       </div>
