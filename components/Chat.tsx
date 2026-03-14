@@ -127,7 +127,8 @@ interface ChatProps {
 export default function Chat({ demoMode = false }: ChatProps) {
   const [state, dispatch] = useReducer(reducer, demoMode, initialState);
   const [promptsUsed, setPromptsUsed] = useState(demoMode);
-  const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>(demoMode ? 'benefits' : 'chat');
+  // Demo starts on chat tab so the conversation arc is visible first — that's the story
+  const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
