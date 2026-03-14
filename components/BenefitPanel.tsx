@@ -2,13 +2,22 @@
 
 import type { BenefitPrediction } from '@/lib/types';
 import BenefitCard from './BenefitCard';
+import ScenarioModeler from './ScenarioModeler';
 import { Sparkles } from 'lucide-react';
 
 interface BenefitPanelProps {
   cards: BenefitPrediction[];
+  baseIncome?: number;
+  householdSize?: number;
+  numChildren?: number;
+  childrenUnder5?: number;
 }
 
-export default function BenefitPanel({ cards }: BenefitPanelProps) {
+export default function BenefitPanel({
+  cards, baseIncome, householdSize, numChildren, childrenUnder5,
+}: BenefitPanelProps) {
+  const verifiedCount = cards.filter(c => c.verifiedBy === 'rule-atlas').length;
+
   return (
     <aside className="flex flex-col h-full border-r bg-muted/30 overflow-hidden">
       {/* Panel header */}
@@ -22,6 +31,11 @@ export default function BenefitPanel({ cards }: BenefitPanelProps) {
             </span>
           )}
         </div>
+        {verifiedCount > 0 && (
+          <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+            {verifiedCount} verified · Rule Atlas rules engine
+          </p>
+        )}
       </div>
 
       {/* Cards list */}
@@ -41,6 +55,16 @@ export default function BenefitPanel({ cards }: BenefitPanelProps) {
           ))
         )}
       </div>
+
+      {/* Scenario modeler — shown when we have an income figure */}
+      {baseIncome !== undefined && baseIncome > 0 && (
+        <ScenarioModeler
+          baseIncome={baseIncome}
+          householdSize={householdSize}
+          numChildren={numChildren}
+          childrenUnder5={childrenUnder5}
+        />
+      )}
     </aside>
   );
 }

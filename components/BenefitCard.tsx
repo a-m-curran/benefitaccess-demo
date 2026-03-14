@@ -2,7 +2,7 @@
 
 import type { BenefitPrediction } from '@/lib/types';
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, CheckCircle } from 'lucide-react';
 
 const confidenceStyles = {
   high:   { dots: '●●●●○', label: 'High confidence', color: 'text-confidence-high' },
@@ -12,26 +12,54 @@ const confidenceStyles = {
 
 export default function BenefitCard({ prediction }: { prediction: BenefitPrediction }) {
   const [expanded, setExpanded] = useState(false);
+  const isVerified = prediction.verifiedBy === 'rule-atlas';
   const conf = confidenceStyles[prediction.confidence];
 
   return (
-    <div className="mt-3 mb-2 rounded-xl border bg-card p-4 space-y-3">
+    <div className={`rounded-xl border bg-card p-4 space-y-3 ${isVerified ? 'border-primary/20' : ''}`}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-semibold text-base">{prediction.programName}</h3>
           <p className="text-xs text-muted-foreground">({prediction.officialName})</p>
         </div>
-        <div className={`text-right ${conf.color}`}>
-          <span className="text-sm font-mono tracking-wider">{conf.dots}</span>
-          <p className="text-xs">{conf.label}</p>
-        </div>
+        {/* Verified badge OR confidence indicator */}
+        {isVerified ? (
+          <div className="flex items-center gap-1 bg-confidence-high/10 border border-confidence-high/25 text-confidence-high rounded-full px-2 py-1 shrink-0">
+            <CheckCircle className="w-3 h-3" />
+            <span className="text-[10px] font-semibold tracking-wide">Verified</span>
+          </div>
+        ) : (
+          <div className={`text-right shrink-0 ${conf.color}`}>
+            <span className="text-sm font-mono tracking-wider">{conf.dots}</span>
+            <p className="text-xs">{conf.label}</p>
+          </div>
+        )}
       </div>
 
-      {/* Estimated value — the hook */}
-      <div className="bg-primary/5 rounded-lg px-3 py-2">
-        <p className="text-sm font-medium">{prediction.estimatedValue}</p>
+      {/* Value display — exact amount takes priority over estimate */}
+      <div className={`rounded-lg px-3 py-2 ${isVerified ? 'bg-primary/8 border border-primary/15' : 'bg-primary/5'}`}>
+        {prediction.exactAmount ? (
+          <div>
+            <p className="text-sm font-semibold">{prediction.exactAmount}</p>
+            {prediction.estimatedValue !== prediction.exactAmount && (
+              <p className="text-xs text-muted-foreground mt-0.5">Precise figure · {prediction.estimatedValue}</p>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm font-medium">{prediction.estimatedValue}</p>
+        )}
       </div>
+
+      {/* Citation badge — only for verified cards */}
+      {isVerified && prediction.citation && (
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-confidence-high shrink-0" />
+          <p className="text-[10px] font-mono text-muted-foreground">
+            {prediction.citation}
+          </p>
+        </div>
+      )}
 
       {/* Description */}
       <p className="text-sm text-muted-foreground leading-relaxed">

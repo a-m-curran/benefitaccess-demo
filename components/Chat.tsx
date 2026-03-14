@@ -9,7 +9,10 @@ import TypingIndicator from './TypingIndicator';
 import BenefitPanel from './BenefitPanel';
 import { parseMessageContent } from '@/lib/parseResponse';
 import type { Message, ConversationState, BenefitPrediction } from '@/lib/types';
-import { Sparkles, MessageSquare } from 'lucide-react';
+import { Sparkles, MessageSquare, FlaskConical } from 'lucide-react';
+import {
+  DEMO_MESSAGES, DEMO_BENEFIT_CARDS, DEMO_BASE_INCOME, DEMO_HOUSEHOLD,
+} from '@/lib/demoData';
 
 type Action =
   | { type: 'ADD_MESSAGE'; message: Message }
@@ -17,6 +20,7 @@ type Action =
   | { type: 'UPDATE_STREAM'; content: string }
   | { type: 'FINISH_STREAMING'; message: Message }
   | { type: 'ADD_CARDS'; cards: BenefitPrediction[] }
+  | { type: 'SET_BASE_INCOME'; income: number }
   | { type: 'SET_PHASE'; phase: ConversationState['phase'] }
   | { type: 'SET_ERROR'; error: string };
 
@@ -31,14 +35,45 @@ const INITIAL_MESSAGE: Message = {
   timestamp: Date.now(),
 };
 
-function initialState(): ConversationState {
+function initialState(demoMode: boolean): ConversationState {
+  if (demoMode) {
+    return {
+      messages: DEMO_MESSAGES,
+      benefitCards: DEMO_BENEFIT_CARDS,
+      baseIncome: DEMO_BASE_INCOME,
+      isStreaming: false,
+      streamingContent: '',
+      phase: 'deepening',
+    };
+  }
   return {
     messages: [INITIAL_MESSAGE],
     benefitCards: [],
+    baseIncome: undefined,
     isStreaming: false,
     streamingContent: '',
     phase: 'story',
   };
+}
+
+// Very rough income extraction from conversation text — good enough for demo
+function extractIncome(text: string): number | undefined {
+  // Look for patterns like "$1,733/month", "1733/month", "$16/hour × 25", etc.
+  const monthlyMatch = text.match(/\$?([\d,]+)\s*(?:\/month|per month|\/mo)/i);
+  if (monthlyMatch) {
+    const n = parseInt(monthlyMatch[1].replace(/,/g, ''), 10);
+    if (n > 200 && n < 20000) return n;
+  }
+  // Hourly × hours → monthly
+  const hourlyMatch = text.match(/\$?([\d.]+)\s*(?:\/hour|per hour|\/hr|an hour)[\s\S]{0,60}?(\d+)\s*hours?\s*(?:\/week|a week|per week)/i);
+  if (hourlyMatch) {
+    const rate = parseFloat(hourlyMatch[1]);
+    const hours = parseInt(hourlyMatch[2], 10);
+    if (rate > 5 && rate < 200 && hours > 0 && hours <= 80) {
+      return Math.round(rate * hours * 52 / 12);
+    }
+  }
+  return undefined;
 }
 
 function reducer(state: ConversationState, action: Action): ConversationState {
@@ -61,6 +96,8 @@ function reducer(state: ConversationState, action: Action): ConversationState {
       const newCards = action.cards.filter(c => !existing.has(c.programName));
       return { ...state, benefitCards: [...state.benefitCards, ...newCards] };
     }
+    case 'SET_BASE_INCOME':
+      return { ...state, baseIncome: action.income };
     case 'SET_PHASE':
       return { ...state, phase: action.phase };
     case 'SET_ERROR':
@@ -83,25 +120,19 @@ function reducer(state: ConversationState, action: Action): ConversationState {
   }
 }
 
-export default function Chat() {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
-  const [promptsUsed, setPromptsUsed] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>('chat');
+interface ChatProps {
+  demoMode?: boolean;
+}
+
+export default function Chat({ demoMode = false }: ChatProps) {
+  const [state, dispatch] = useReducer(reducer, demoMode, initialState);
+  const [promptsUsed, setPromptsUsed] = useState(demoMode);
+  const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>(demoMode ? 'benefits' : 'chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages, state.streamingContent]);
-
-  // Switch to benefits tab when first card arrives (mobile UX)
-  const prevCardCount = useRef(0);
-  useEffect(() => {
-    if (state.benefitCards.length > prevCardCount.current && prevCardCount.current === 0) {
-      // First card appeared — nudge the user (but don't auto-switch; let them finish reading)
-    }
-    prevCardCount.current = state.benefitCards.length;
-  }, [state.benefitCards.length]);
 
   const sendMessage = useCallback(async (content: string) => {
     const userMessage: Message = {
@@ -111,8 +142,14 @@ export default function Chat() {
       timestamp: Date.now(),
     };
 
+    // Try to extract income from user messages
+    const income = extractIncome(content);
+    if (income && !state.baseIncome) {
+      dispatch({ type: 'SET_BASE_INCOME', income });
+    }
+
     setPromptsUsed(true);
-    setActiveTab('chat'); // Always switch to chat when sending
+    setActiveTab('chat');
     dispatch({ type: 'ADD_MESSAGE', message: userMessage });
     dispatch({ type: 'START_STREAMING' });
 
@@ -150,7 +187,13 @@ export default function Chat() {
 
       dispatch({ type: 'FINISH_STREAMING', message: assistantMessage });
 
-      // Extract any benefit cards from this response and add to persistent panel
+      // Extract income from assistant response if not yet set
+      if (!state.baseIncome) {
+        const income = extractIncome(fullText);
+        if (income) dispatch({ type: 'SET_BASE_INCOME', income });
+      }
+
+      // Extract benefit cards
       const { benefitCards } = parseMessageContent(fullText);
       if (benefitCards.length > 0) {
         dispatch({ type: 'ADD_CARDS', cards: benefitCards });
@@ -158,7 +201,7 @@ export default function Chat() {
     } catch {
       dispatch({ type: 'SET_ERROR', error: 'Request failed' });
     }
-  }, [state.messages]);
+  }, [state.messages, state.baseIncome]);
 
   const cardCount = state.benefitCards.length;
 
@@ -166,17 +209,23 @@ export default function Chat() {
     <div className="flex flex-col h-dvh max-h-dvh overflow-hidden">
       {/* ── Header ── */}
       <header className="flex-shrink-0 border-b bg-card/80 backdrop-blur-sm px-4 py-3 z-10">
-        <div className="flex items-center justify-between max-w-none">
-          <span className="font-semibold text-sm text-primary">BenefitAccess</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm text-primary">BenefitAccess</span>
+            {demoMode && (
+              <span className="flex items-center gap-1 text-[10px] font-mono bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded px-1.5 py-0.5">
+                <FlaskConical className="w-2.5 h-2.5" />
+                demo
+              </span>
+            )}
+          </div>
 
-          {/* Mobile tab bar — shown only on small screens */}
+          {/* Mobile tab bar */}
           <div className="flex md:hidden items-center gap-1 bg-muted rounded-lg p-1">
             <button
               onClick={() => setActiveTab('chat')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                activeTab === 'chat'
-                  ? 'bg-card shadow-sm text-foreground'
-                  : 'text-muted-foreground'
+                activeTab === 'chat' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
               }`}
             >
               <MessageSquare className="w-3.5 h-3.5" />
@@ -185,9 +234,7 @@ export default function Chat() {
             <button
               onClick={() => setActiveTab('benefits')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                activeTab === 'benefits'
-                  ? 'bg-card shadow-sm text-foreground'
-                  : 'text-muted-foreground'
+                activeTab === 'benefits' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -204,33 +251,36 @@ export default function Chat() {
         </div>
       </header>
 
-      {/* ── Body: two-column on desktop, single-panel on mobile ── */}
+      {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* LEFT — Benefit Panel (always visible on md+, tab-controlled on mobile) */}
+        {/* LEFT — Benefit Panel */}
         <div className={`
           w-full md:w-80 lg:w-96 flex-shrink-0
           ${activeTab === 'benefits' ? 'flex' : 'hidden'} md:flex
           flex-col overflow-hidden
         `}>
-          <BenefitPanel cards={state.benefitCards} />
+          <BenefitPanel
+            cards={state.benefitCards}
+            baseIncome={state.baseIncome}
+            householdSize={demoMode ? DEMO_HOUSEHOLD.size : undefined}
+            numChildren={demoMode ? DEMO_HOUSEHOLD.numChildren : undefined}
+            childrenUnder5={demoMode ? DEMO_HOUSEHOLD.childrenUnder5 : undefined}
+          />
         </div>
 
-        {/* RIGHT — Chat (always visible on md+, tab-controlled on mobile) */}
+        {/* RIGHT — Chat */}
         <div className={`
           flex-1 flex flex-col overflow-hidden
           ${activeTab === 'chat' ? 'flex' : 'hidden'} md:flex
         `}>
           <WelcomeBanner />
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
             <div className="max-w-2xl mx-auto space-y-4">
               {state.messages.map((message) => (
                 <MessageBubble key={message.id} message={message} />
               ))}
 
-              {/* Suggested prompts */}
               {!promptsUsed && state.messages.length === 1 && !state.isStreaming && (
                 <SuggestedPrompts onSelect={(prompt) => {
                   setPromptsUsed(true);
@@ -238,7 +288,6 @@ export default function Chat() {
                 }} />
               )}
 
-              {/* Streaming message */}
               {state.isStreaming && state.streamingContent && (
                 <MessageBubble
                   message={{
@@ -250,10 +299,7 @@ export default function Chat() {
                 />
               )}
 
-              {/* Typing indicator */}
-              {state.isStreaming && !state.streamingContent && (
-                <TypingIndicator />
-              )}
+              {state.isStreaming && !state.streamingContent && <TypingIndicator />}
 
               <div ref={messagesEndRef} />
             </div>
