@@ -6,13 +6,17 @@ import SuggestedPrompts from './SuggestedPrompts';
 import InputArea from './InputArea';
 import WelcomeBanner from './WelcomeBanner';
 import TypingIndicator from './TypingIndicator';
-import type { Message, ConversationState } from '@/lib/types';
+import BenefitPanel from './BenefitPanel';
+import { parseMessageContent } from '@/lib/parseResponse';
+import type { Message, ConversationState, BenefitPrediction } from '@/lib/types';
+import { Sparkles, MessageSquare } from 'lucide-react';
 
 type Action =
   | { type: 'ADD_MESSAGE'; message: Message }
   | { type: 'START_STREAMING' }
   | { type: 'UPDATE_STREAM'; content: string }
   | { type: 'FINISH_STREAMING'; message: Message }
+  | { type: 'ADD_CARDS'; cards: BenefitPrediction[] }
   | { type: 'SET_PHASE'; phase: ConversationState['phase'] }
   | { type: 'SET_ERROR'; error: string };
 
@@ -30,6 +34,7 @@ const INITIAL_MESSAGE: Message = {
 function initialState(): ConversationState {
   return {
     messages: [INITIAL_MESSAGE],
+    benefitCards: [],
     isStreaming: false,
     streamingContent: '',
     phase: 'story',
@@ -51,6 +56,11 @@ function reducer(state: ConversationState, action: Action): ConversationState {
         streamingContent: '',
         messages: [...state.messages, action.message],
       };
+    case 'ADD_CARDS': {
+      const existing = new Set(state.benefitCards.map(c => c.programName));
+      const newCards = action.cards.filter(c => !existing.has(c.programName));
+      return { ...state, benefitCards: [...state.benefitCards, ...newCards] };
+    }
     case 'SET_PHASE':
       return { ...state, phase: action.phase };
     case 'SET_ERROR':
@@ -76,13 +86,22 @@ function reducer(state: ConversationState, action: Action): ConversationState {
 export default function Chat() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const [promptsUsed, setPromptsUsed] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages, state.streamingContent]);
+
+  // Switch to benefits tab when first card arrives (mobile UX)
+  const prevCardCount = useRef(0);
+  useEffect(() => {
+    if (state.benefitCards.length > prevCardCount.current && prevCardCount.current === 0) {
+      // First card appeared — nudge the user (but don't auto-switch; let them finish reading)
+    }
+    prevCardCount.current = state.benefitCards.length;
+  }, [state.benefitCards.length]);
 
   const sendMessage = useCallback(async (content: string) => {
     const userMessage: Message = {
@@ -92,12 +111,12 @@ export default function Chat() {
       timestamp: Date.now(),
     };
 
-    setPromptsUsed(true); // Hide suggested prompts once user sends anything
+    setPromptsUsed(true);
+    setActiveTab('chat'); // Always switch to chat when sending
     dispatch({ type: 'ADD_MESSAGE', message: userMessage });
     dispatch({ type: 'START_STREAMING' });
 
     try {
-      // Build message history for Claude (exclude IDs and timestamps)
       const history = [...state.messages, userMessage].map(m => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -109,11 +128,8 @@ export default function Chat() {
         body: JSON.stringify({ messages: history }),
       });
 
-      if (!res.ok) {
-        throw new Error('Chat request failed');
-      }
+      if (!res.ok) throw new Error('Chat request failed');
 
-      // Stream the response
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
@@ -133,65 +149,119 @@ export default function Chat() {
       };
 
       dispatch({ type: 'FINISH_STREAMING', message: assistantMessage });
+
+      // Extract any benefit cards from this response and add to persistent panel
+      const { benefitCards } = parseMessageContent(fullText);
+      if (benefitCards.length > 0) {
+        dispatch({ type: 'ADD_CARDS', cards: benefitCards });
+      }
     } catch {
       dispatch({ type: 'SET_ERROR', error: 'Request failed' });
     }
   }, [state.messages]);
 
+  const cardCount = state.benefitCards.length;
+
   return (
-    <div className="flex flex-col h-dvh max-h-dvh">
-      {/* Header — minimal, warm */}
-      <header className="flex-shrink-0 border-b bg-card/80 backdrop-blur-sm px-4 py-3">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+    <div className="flex flex-col h-dvh max-h-dvh overflow-hidden">
+      {/* ── Header ── */}
+      <header className="flex-shrink-0 border-b bg-card/80 backdrop-blur-sm px-4 py-3 z-10">
+        <div className="flex items-center justify-between max-w-none">
           <span className="font-semibold text-sm text-primary">BenefitAccess</span>
-          <span className="text-xs text-muted-foreground">Private · Nothing stored</span>
+
+          {/* Mobile tab bar — shown only on small screens */}
+          <div className="flex md:hidden items-center gap-1 bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'chat'
+                  ? 'bg-card shadow-sm text-foreground'
+                  : 'text-muted-foreground'
+              }`}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('benefits')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                activeTab === 'benefits'
+                  ? 'bg-card shadow-sm text-foreground'
+                  : 'text-muted-foreground'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Benefits
+              {cardCount > 0 && (
+                <span className="bg-primary text-primary-foreground text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none">
+                  {cardCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <span className="text-xs text-muted-foreground hidden sm:block">Private · Nothing stored</span>
         </div>
       </header>
 
-      {/* Welcome banner — shown above first message */}
-      <WelcomeBanner />
+      {/* ── Body: two-column on desktop, single-panel on mobile ── */}
+      <div className="flex flex-1 overflow-hidden">
 
-      {/* Messages area — scrollable */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {state.messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
-          ))}
+        {/* LEFT — Benefit Panel (always visible on md+, tab-controlled on mobile) */}
+        <div className={`
+          w-full md:w-80 lg:w-96 flex-shrink-0
+          ${activeTab === 'benefits' ? 'flex' : 'hidden'} md:flex
+          flex-col overflow-hidden
+        `}>
+          <BenefitPanel cards={state.benefitCards} />
+        </div>
 
-          {/* Suggested prompts — shown only before user's first message */}
-          {!promptsUsed && state.messages.length === 1 && !state.isStreaming && (
-            <SuggestedPrompts onSelect={(prompt) => {
-              setPromptsUsed(true);
-              sendMessage(prompt);
-            }} />
-          )}
+        {/* RIGHT — Chat (always visible on md+, tab-controlled on mobile) */}
+        <div className={`
+          flex-1 flex flex-col overflow-hidden
+          ${activeTab === 'chat' ? 'flex' : 'hidden'} md:flex
+        `}>
+          <WelcomeBanner />
 
-          {/* Streaming message */}
-          {state.isStreaming && state.streamingContent && (
-            <MessageBubble
-              message={{
-                id: 'streaming',
-                role: 'assistant',
-                content: state.streamingContent,
-                timestamp: Date.now(),
-              }}
-            />
-          )}
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto chat-scroll px-4 py-6">
+            <div className="max-w-2xl mx-auto space-y-4">
+              {state.messages.map((message) => (
+                <MessageBubble key={message.id} message={message} />
+              ))}
 
-          {/* Typing indicator — shown when streaming but no content yet */}
-          {state.isStreaming && !state.streamingContent && (
-            <TypingIndicator />
-          )}
+              {/* Suggested prompts */}
+              {!promptsUsed && state.messages.length === 1 && !state.isStreaming && (
+                <SuggestedPrompts onSelect={(prompt) => {
+                  setPromptsUsed(true);
+                  sendMessage(prompt);
+                }} />
+              )}
 
-          <div ref={messagesEndRef} />
+              {/* Streaming message */}
+              {state.isStreaming && state.streamingContent && (
+                <MessageBubble
+                  message={{
+                    id: 'streaming',
+                    role: 'assistant',
+                    content: state.streamingContent,
+                    timestamp: Date.now(),
+                  }}
+                />
+              )}
+
+              {/* Typing indicator */}
+              {state.isStreaming && !state.streamingContent && (
+                <TypingIndicator />
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+
+          <InputArea onSend={sendMessage} disabled={state.isStreaming} />
         </div>
       </div>
-
-      {/* Input area — fixed at bottom */}
-      <InputArea
-        onSend={sendMessage}
-        disabled={state.isStreaming}
-      />
     </div>
   );
 }

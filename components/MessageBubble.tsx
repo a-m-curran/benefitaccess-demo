@@ -1,7 +1,6 @@
 'use client';
 
 import type { Message } from '@/lib/types';
-import BenefitCard from './BenefitCard';
 import { parseMessageContent } from '@/lib/parseResponse';
 
 interface MessageBubbleProps {
@@ -10,7 +9,11 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isAssistant = message.role === 'assistant';
-  const { textBlocks, benefitCards } = parseMessageContent(message.content);
+  // Extract text only — benefit cards are rendered in the persistent left panel
+  const { textBlocks } = parseMessageContent(message.content);
+
+  // If there's nothing to show (e.g., a message that was only cards), skip rendering
+  if (textBlocks.length === 0 || textBlocks.every(b => !b.trim())) return null;
 
   return (
     <div className={`flex message-enter ${isAssistant ? 'justify-start' : 'justify-end'}`}>
@@ -24,13 +27,9 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         `}
       >
         {textBlocks.map((block, i) => (
-          <p key={i} className="text-[15px] leading-relaxed whitespace-pre-wrap">
+          <p key={i} className={`text-[15px] leading-relaxed whitespace-pre-wrap ${i > 0 ? 'mt-2' : ''}`}>
             {block}
           </p>
-        ))}
-
-        {benefitCards.map((card, i) => (
-          <BenefitCard key={i} prediction={card} />
         ))}
       </div>
     </div>

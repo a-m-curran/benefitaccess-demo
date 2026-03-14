@@ -20,6 +20,7 @@ export interface BenefitPrediction {
 
 export interface ConversationState {
   messages: Message[];
+  benefitCards: BenefitPrediction[];
   isStreaming: boolean;
   streamingContent: string;
   phase: 'welcome' | 'story' | 'reflection' | 'predictions' | 'deepening';
