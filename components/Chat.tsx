@@ -31,7 +31,10 @@ function generateId(): string {
 const INITIAL_MESSAGE: Message = {
   id: 'initial',
   role: 'assistant',
-  content: "Tell me a little about what's going on in your life right now — whatever feels most pressing. I'm here to help figure out what support might be available to you.",
+  // Leads with normalizing ("most people qualify for more than they realize") before
+  // asking anything — pre-empts "do I even belong here?" without naming it.
+  // Short enough that the chips below feel like the natural first move.
+  content: "Most people qualify for more support than they realize — food assistance, healthcare, childcare, and more. I can help figure out what's available for your situation. What's going on?",
   timestamp: Date.now(),
 };
 

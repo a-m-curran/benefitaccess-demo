@@ -108,8 +108,8 @@ export const DEMO_MESSAGES: Message[] = [
     id: 'demo-0',
     role: 'assistant',
     // Not used in playback (opening message already shown by INITIAL_MESSAGE).
-    // Kept here for reference.
-    content: "Tell me a little about what's going on in your life right now — whatever feels most pressing. I'm here to help figure out what support might be available to you.",
+    // Kept here for reference — must match INITIAL_MESSAGE in Chat.tsx.
+    content: "Most people qualify for more support than they realize — food assistance, healthcare, childcare, and more. I can help figure out what's available for your situation. What's going on?",
     timestamp: Date.now() - 1050000,
   },
   {
