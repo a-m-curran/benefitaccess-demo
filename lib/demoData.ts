@@ -44,7 +44,12 @@ export const DEMO_BENEFIT_CARDS: BenefitPrediction[] = [
     whatItCovers: "Groceries at most major stores — produce, meat, dairy, bread, pantry staples. Does not cover prepared hot foods, alcohol, or household supplies.",
     howToApply: "Apply online at Washington Connection — takes about 20 minutes and you can do it from your phone.",
     timeEstimate: "About 20 minutes online",
-    documentsNeeded: ["Photo ID", "Proof of Washington address", "Recent pay stubs or offer letter", "Your children's birth certificates"],
+    documentsNeeded: [
+      "Photo ID — driver's license, state ID, or passport",
+      "Something showing your Washington address — a utility bill, lease agreement, or any piece of official mail",
+      "Proof of income — your most recent 1-2 pay stubs. If you don't get formal stubs, a screenshot of your bank deposit records works",
+      "Your kids' birth dates — you don't need birth certificates for the initial application, just the dates",
+    ],
     applicationUrl: "https://www.washingtonconnection.org",
   },
   {
@@ -59,7 +64,11 @@ export const DEMO_BENEFIT_CARDS: BenefitPrediction[] = [
     whatItCovers: "Doctor visits, prescriptions, dental, vision, mental health, and hospital care. No copays at your income level.",
     howToApply: "Apply at Washington Connection — same application as SNAP, you can do both at once.",
     timeEstimate: "Done in the same application as food assistance",
-    documentsNeeded: ["Same documents as SNAP — no additional paperwork needed"],
+    documentsNeeded: [
+      "Same application as SNAP — no extra paperwork needed if you apply at the same time",
+      "If applying separately: photo ID + proof of Washington address (same as SNAP)",
+      "Your kids are automatically enrolled as children — their coverage doesn't require separate documentation",
+    ],
     applicationUrl: "https://www.washingtonconnection.org",
   },
   {
@@ -74,7 +83,12 @@ export const DEMO_BENEFIT_CARDS: BenefitPrediction[] = [
     whatItCovers: "A direct cash refund — you can use it for anything. Many families use it for emergency savings, debt, or a large one-time expense.",
     howToApply: "File your federal taxes and claim the credit. Free filing through VITA (Volunteer Income Tax Assistance) is available in King County and most WA counties.",
     timeEstimate: "VITA appointments are free and usually take 1-2 hours",
-    documentsNeeded: ["W-2 or pay stubs for full year", "Social Security cards for you and your children", "Photo ID"],
+    documentsNeeded: [
+      "W-2 form from your employer — you'll get this in January. If you've had multiple jobs, you'll need one from each",
+      "Social Security numbers for you and both kids — you don't need the physical cards, just the numbers",
+      "Photo ID — driver's license or state ID",
+      "VITA is free and they handle all the forms — you just bring the documents and they do the rest",
+    ],
     applicationUrl: "https://www.irs.gov/vita",
   },
   {
@@ -89,7 +103,12 @@ export const DEMO_BENEFIT_CARDS: BenefitPrediction[] = [
     whatItCovers: "Specific foods: milk, eggs, cheese, cereal, fruits and vegetables, whole grains, and legumes. Vouchers or EBT card loaded monthly.",
     howToApply: "Call your local WIC office or visit the Washington WIC website to schedule a certification appointment.",
     timeEstimate: "Initial appointment about 1 hour; renewal every 6 months",
-    documentsNeeded: ["Photo ID", "Proof of address", "Your child's immunization record", "Proof of income (pay stubs)"],
+    documentsNeeded: [
+      "Photo ID — driver's license or state ID",
+      "Proof of address — a utility bill, lease, or piece of mail",
+      "Your 4-year-old's immunization record — most pediatricians can print this at your next visit, or your child's school may have a copy",
+      "Proof of income — 1-2 recent pay stubs. A bank statement showing deposits also works if you don't have formal stubs",
+    ],
     applicationUrl: "https://www.doh.wa.gov/YouandYourFamily/WIC",
   },
 ];

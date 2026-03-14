@@ -2,18 +2,32 @@
 
 import type { BenefitPrediction } from '@/lib/types';
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, Calculator } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 
-const confidenceStyles = {
-  high:   { dots: '●●●●○', label: 'High confidence', color: 'text-confidence-high' },
-  medium: { dots: '●●●○○', label: 'Moderate confidence', color: 'text-confidence-medium' },
-  lower:  { dots: '●●○○○', label: 'Less certain', color: 'text-confidence-lower' },
+// Subtle confidence indicators: small colored dot + plain-language phrase.
+// Deliberately understated — the card leads with the benefit amount, not a trust signal.
+const confidenceConfig = {
+  high:   {
+    dot: 'bg-confidence-high',
+    label: 'Strong match',
+    tooltip: "Based on what you've shared, this is very likely available to you.",
+  },
+  medium: {
+    dot: 'bg-confidence-medium',
+    label: 'Likely available',
+    tooltip: "This is probably available to you, but depends on details we haven't discussed.",
+  },
+  lower:  {
+    dot: 'bg-confidence-lower',
+    label: 'Worth exploring',
+    tooltip: 'This might be available — it varies by location or has specific requirements worth checking.',
+  },
 };
 
 export default function BenefitCard({ prediction }: { prediction: BenefitPrediction }) {
   const [expanded, setExpanded] = useState(false);
   const isVerified = prediction.verifiedBy === 'rule-atlas';
-  const conf = confidenceStyles[prediction.confidence];
+  const conf = confidenceConfig[prediction.confidence];
 
   return (
     <div className={`rounded-xl border bg-card p-4 space-y-3 ${isVerified ? 'border-primary/20' : ''}`}>
@@ -23,18 +37,15 @@ export default function BenefitCard({ prediction }: { prediction: BenefitPredict
           <h3 className="font-semibold text-base">{prediction.programName}</h3>
           <p className="text-xs text-muted-foreground">({prediction.officialName})</p>
         </div>
-        {/* Calculated badge OR confidence indicator */}
-        {isVerified ? (
-          <div className="flex items-center gap-1 bg-confidence-high/10 border border-confidence-high/25 text-confidence-high rounded-full px-2 py-1 shrink-0">
-            <Calculator className="w-3 h-3" />
-            <span className="text-[10px] font-semibold tracking-wide">Calculated</span>
-          </div>
-        ) : (
-          <div className={`text-right shrink-0 ${conf.color}`}>
-            <span className="text-sm font-mono tracking-wider">{conf.dots}</span>
-            <p className="text-xs">{conf.label}</p>
-          </div>
-        )}
+        {/* Subtle confidence indicator: colored dot + plain-language phrase.
+            No badge — leads with amount and name, not a trust signal. */}
+        <div
+          className="flex items-center gap-1.5 shrink-0 pt-0.5"
+          title={conf.tooltip}
+        >
+          <div className={`w-2 h-2 rounded-full shrink-0 ${conf.dot}`} />
+          <span className="text-xs text-muted-foreground">{conf.label}</span>
+        </div>
       </div>
 
       {/* Value display — exact amount takes priority over estimate */}
