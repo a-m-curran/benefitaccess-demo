@@ -11,10 +11,11 @@ interface BenefitPanelProps {
   householdSize?: number;
   numChildren?: number;
   childrenUnder5?: number;
+  state?: string;
 }
 
 export default function BenefitPanel({
-  cards, baseIncome, householdSize, numChildren, childrenUnder5,
+  cards, baseIncome, householdSize, numChildren, childrenUnder5, state,
 }: BenefitPanelProps) {
   const verifiedCount = cards.filter(c => c.verifiedBy === 'rule-atlas').length;
 
@@ -48,6 +49,7 @@ export default function BenefitPanel({
             householdSize={householdSize}
             numChildren={numChildren}
             childrenUnder5={childrenUnder5}
+            state={state}
           />
         </div>
       )}

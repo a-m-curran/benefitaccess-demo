@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { calculateScenario } from '@/lib/mockCalculations';
+import { calculateScenario, STATE_RULE_LABELS } from '@/lib/mockCalculations';
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 
 interface ScenarioModelerProps {
@@ -9,6 +9,7 @@ interface ScenarioModelerProps {
   householdSize?: number;
   numChildren?: number;
   childrenUnder5?: number;
+  state?: string;
 }
 
 function fmt(n: number): string {
@@ -38,13 +39,13 @@ function ProgramRow({ name, current, next, change, lostEligibility }: {
 }
 
 export default function ScenarioModeler({
-  baseIncome, householdSize = 3, numChildren = 2, childrenUnder5 = 1,
+  baseIncome, householdSize = 3, numChildren = 2, childrenUnder5 = 1, state = 'WA',
 }: ScenarioModelerProps) {
   const [sliderValue, setSliderValue] = useState(baseIncome);
 
   const scenario = useMemo(() =>
-    calculateScenario(baseIncome, sliderValue, { householdSize, numChildren, childrenUnder5 }),
-    [baseIncome, sliderValue, householdSize, numChildren, childrenUnder5]
+    calculateScenario(baseIncome, sliderValue, { householdSize, numChildren, childrenUnder5, state }),
+    [baseIncome, sliderValue, householdSize, numChildren, childrenUnder5, state]
   );
 
   const incomeChange = sliderValue - baseIncome;
@@ -138,7 +139,7 @@ export default function ScenarioModeler({
 
         {/* Attribution */}
         <p className="text-[9px] text-muted-foreground/40 text-center font-mono">
-          Calculations approximate WA state rules (2025) · powered by Rule Atlas
+          Calculations approximate {STATE_RULE_LABELS[state] ?? state} rules (2025) · powered by Rule Atlas
         </p>
       </div>
     </div>

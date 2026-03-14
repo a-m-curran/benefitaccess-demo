@@ -675,6 +675,7 @@ export interface DemoScenario {
   cardReveal: Record<string, BenefitPrediction[]>;
   baseIncome: number;
   household: { size: number; numChildren: number; childrenUnder5: number };
+  state: string; // two-letter state code — drives state-specific simulator calculations
   chipLabel: string;
   incomeMessageId: string; // message ID that triggers SET_BASE_INCOME dispatch
 }
@@ -685,6 +686,7 @@ export const DEMO_SCENARIOS: Record<number, DemoScenario> = {
     cardReveal: DEMO_CARD_REVEAL,
     baseIncome: DEMO_BASE_INCOME,
     household: DEMO_HOUSEHOLD,
+    state: 'WA',
     chipLabel: '▶ Walk me through an example',
     incomeMessageId: 'demo-4',
   },
@@ -693,6 +695,7 @@ export const DEMO_SCENARIOS: Record<number, DemoScenario> = {
     cardReveal: DEMO_2_CARD_REVEAL,
     baseIncome: 1300,
     household: { size: 2, numChildren: 1, childrenUnder5: 1 },
+    state: 'IL',
     chipLabel: '▶ Walk me through a harder conversation',
     incomeMessageId: 'demo2-4',
   },
@@ -701,6 +704,7 @@ export const DEMO_SCENARIOS: Record<number, DemoScenario> = {
     cardReveal: DEMO_3_CARD_REVEAL,
     baseIncome: 2100,
     household: { size: 2, numChildren: 0, childrenUnder5: 0 },
+    state: 'TX',
     chipLabel: '▶ Show me income uncertainty',
     incomeMessageId: 'demo3-4',
   },

@@ -319,6 +319,7 @@ export default function Chat({ demoMode }: ChatProps) {
             householdSize={scenario?.household.size}
             numChildren={scenario?.household.numChildren}
             childrenUnder5={scenario?.household.childrenUnder5}
+            state={scenario?.state}
           />
         </div>
 
