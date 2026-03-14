@@ -10,9 +10,7 @@ import BenefitPanel from './BenefitPanel';
 import { parseMessageContent } from '@/lib/parseResponse';
 import type { Message, ConversationState, BenefitPrediction } from '@/lib/types';
 import { Sparkles, MessageSquare } from 'lucide-react';
-import {
-  DEMO_MESSAGES, DEMO_CARD_REVEAL, DEMO_BASE_INCOME, DEMO_HOUSEHOLD,
-} from '@/lib/demoData';
+import { DEMO_SCENARIOS } from '@/lib/demoData';
 
 type Action =
   | { type: 'ADD_MESSAGE'; message: Message }
@@ -39,7 +37,7 @@ const INITIAL_MESSAGE: Message = {
 };
 
 // Both demo and live mode start fresh — same opening message + chips.
-// In demo mode, chips include a special "Walk me through an example" trigger.
+// In demo mode, chips include a special scenario-specific trigger chip.
 function initialState(): ConversationState {
   return {
     messages: [INITIAL_MESSAGE],
@@ -121,17 +119,22 @@ function reducer(state: ConversationState, action: Action): ConversationState {
 }
 
 interface ChatProps {
-  demoMode?: boolean;
+  // Numeric demo mode: 1 = Maya (WA), 2 = Deja (IL), 3 = Tomás (TX).
+  // Undefined / falsy = live mode (real API).
+  demoMode?: number;
 }
 
-export default function Chat({ demoMode = false }: ChatProps) {
+export default function Chat({ demoMode }: ChatProps) {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const [promptsUsed, setPromptsUsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'benefits'>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Demo auto-play: null = not playing, number = next DEMO_MESSAGES index to show.
-  // Playback starts at index 1 (demo-0 is the opening message, already shown by INITIAL_MESSAGE).
+  // Look up the active scenario (undefined in live mode).
+  const scenario = demoMode ? (DEMO_SCENARIOS[demoMode] ?? null) : null;
+
+  // Demo auto-play: null = not playing, number = next scenario.messages index to show.
+  // Playback starts at index 1 (index 0 is the opening message, already shown by INITIAL_MESSAGE).
   const [demoPlayback, setDemoPlayback] = useState<number | null>(null);
 
   const isDemoPlaying = demoPlayback !== null;
@@ -141,21 +144,21 @@ export default function Chat({ demoMode = false }: ChatProps) {
   }, [state.messages, state.streamingContent]);
 
   // ── Demo auto-play engine ──────────────────────────────────────────────────
-  // Advances through DEMO_MESSAGES one at a time with realistic delays.
+  // Advances through scenario.messages one at a time with realistic delays.
   // User messages appear after a short pause; assistant messages show a typing
-  // indicator, then the full message. Cards are revealed per DEMO_CARD_REVEAL.
+  // indicator, then the full message. Cards are revealed per scenario.cardReveal.
   useEffect(() => {
-    if (demoPlayback === null) return;
+    if (demoPlayback === null || !scenario) return;
 
-    // Skip demo-0 (it's the same as the opening message already shown)
+    // Skip index 0 (it's the same as the opening message already shown)
     const idx = demoPlayback === 0 ? 1 : demoPlayback;
 
-    if (idx >= DEMO_MESSAGES.length) {
+    if (idx >= scenario.messages.length) {
       setDemoPlayback(null); // finished
       return;
     }
 
-    const msg = DEMO_MESSAGES[idx];
+    const msg = scenario.messages[idx];
 
     if (msg.role === 'assistant') {
       // Show typing indicator immediately, then reveal message after a duration
@@ -164,11 +167,13 @@ export default function Chat({ demoMode = false }: ChatProps) {
         dispatch({ type: 'FINISH_STREAMING', message: msg });
 
         // Reveal cards mapped to this message
-        const cards = DEMO_CARD_REVEAL[msg.id];
+        const cards = scenario.cardReveal[msg.id];
         if (cards?.length) dispatch({ type: 'ADD_CARDS', cards });
 
-        // Set income when demo-4 plays (assistant first calculates the $1,733 figure)
-        if (msg.id === 'demo-4') dispatch({ type: 'SET_BASE_INCOME', income: DEMO_BASE_INCOME });
+        // Set income when the scenario's designated income message plays
+        if (msg.id === scenario.incomeMessageId) {
+          dispatch({ type: 'SET_BASE_INCOME', income: scenario.baseIncome });
+        }
 
         setDemoPlayback(idx + 1);
       }, typingDuration(msg.content));
@@ -181,9 +186,9 @@ export default function Chat({ demoMode = false }: ChatProps) {
       }, 500);
       return () => clearTimeout(t);
     }
-  }, [demoPlayback]);
+  }, [demoPlayback, scenario]);
 
-  // Start demo playback from message index 1 (demo-1 is Maya's first message)
+  // Start demo playback from message index 1
   const startDemoPlayback = useCallback(() => {
     setPromptsUsed(true);
     setDemoPlayback(1);
@@ -311,9 +316,9 @@ export default function Chat({ demoMode = false }: ChatProps) {
           <BenefitPanel
             cards={state.benefitCards}
             baseIncome={state.baseIncome}
-            householdSize={demoMode ? DEMO_HOUSEHOLD.size : undefined}
-            numChildren={demoMode ? DEMO_HOUSEHOLD.numChildren : undefined}
-            childrenUnder5={demoMode ? DEMO_HOUSEHOLD.childrenUnder5 : undefined}
+            householdSize={scenario?.household.size}
+            numChildren={scenario?.household.numChildren}
+            childrenUnder5={scenario?.household.childrenUnder5}
           />
         </div>
 
@@ -331,15 +336,15 @@ export default function Chat({ demoMode = false }: ChatProps) {
               ))}
 
               {/* Chips: shown until user sends first message.
-                  In demo mode, includes a featured "Walk me through" chip that
+                  In demo mode, includes a scenario-specific featured chip that
                   triggers auto-play of the pre-written arc. Regular chips still
                   work and go to the live API for real conversations. */}
               {showChips && (
                 <SuggestedPrompts
                   prompts={STANDARD_PROMPTS}
                   onSelect={sendMessage}
-                  featuredChip={demoMode ? {
-                    label: '▶ Walk me through an example',
+                  featuredChip={scenario ? {
+                    label: scenario.chipLabel,
                     onSelect: startDemoPlayback,
                   } : undefined}
                 />
